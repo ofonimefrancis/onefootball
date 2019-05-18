@@ -53,5 +53,11 @@ type Response struct {
 }
 
 func (response Response) InRequiredTeam() bool {
+	requiredTeams := []string{"Germany", "England", "France", "Spain", "Manchester Utd", "Arsenal", "Chelsea", "Barcelona", "Real Madrid", "FC Bayern Munich"}
+	for _, requiredTeam := range requiredTeams {
+		if requiredTeam == response.Data.Team.Name {
+			return true
+		}
+	}
 	return false
 }
