@@ -7,32 +7,37 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/ofonimefrancis/onefootball/models"
 )
 
 const (
-	LIMIT = 8000
+	LIMIT = 5000
 )
 
+var URL = "https://vintagemonster.onefootball.com/api/teams/en/%s.json"
+
+//Result Reperesents the information that should be outputted on
 type Result struct {
-	Name    string `json:"name"`
-	Age     string `json:"age"`
-	Country string `json:"country"`
-	Team    string `json:"team"`
+	Name    string   `json:"name"`
+	Age     string   `json:"age"`
+	Country string   `json:"country"`
+	Team    []string `json:"team"`
 }
 
+//ResultList - Implements the Sort interface for sorting players name alphabetically
 type ResultList []Result
 
-func (r ResultList) Len() int { return len(r) }
+func (r ResultList) Len() int      { return len(r) }
+func (r ResultList) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
 func (r ResultList) Less(i, j int) bool {
 	return r[i].Name < r[j].Name
 }
 
 var allPlayers ResultList
-
-func (r ResultList) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+var allWithoutDuplicates = make(map[string]Result)
 
 func main() {
 	goGroup := new(sync.WaitGroup)
@@ -45,13 +50,16 @@ func main() {
 	goGroup.Wait()
 
 	for _, player := range permutationOfPlayers(allPlayers) {
-		fmt.Printf("%s; %s; %s, %s\n", player.Name, player.Age, player.Country, player.Team)
+		fmt.Printf("%s; %s; %s\n", player.Name, player.Age, strings.Join(player.Team, ", "))
 	}
+
 }
 
+//getTeamPlayers - Given a team
 func getTeamPlayers(teamID int, goGroup *sync.WaitGroup) {
-	teamId := strconv.Itoa(teamID)
-	url := fmt.Sprintf("https://vintagemonster.onefootball.com/api/teams/en/%s.json", teamId)
+	defer goGroup.Done()
+	teamIDInt := strconv.Itoa(teamID)
+	url := fmt.Sprintf(URL, teamIDInt)
 	resp, err := Get(url)
 	if err != nil {
 		return
@@ -60,19 +68,35 @@ func getTeamPlayers(teamID int, goGroup *sync.WaitGroup) {
 	err = json.NewDecoder(resp.Body).Decode(&responseData)
 	if err != nil {
 		log.Println("Error parsing response body")
-		log.Println(err)
 		return
 	}
 	ok := responseData.InRequiredTeam()
 	if ok {
+		teamName := responseData.Data.Team.Name
 		players := responseData.Data.Team.Players
 		for _, player := range players {
-			result := Result{Name: player.Name, Age: player.Age, Country: player.Country, Team: responseData.Data.Team.Name}
-			allPlayers = append(allPlayers, result)
+			result, ok := allWithoutDuplicates[player.Name]
+			if ok {
+				result.Team = append(result.Team, teamName)
+				index := getPlayerIndex(player.Name)
+				allWithoutDuplicates[player.Name] = result
+				allPlayers[index] = result
+			} else {
+				newResult := Result{Name: player.Name, Age: player.Age, Team: []string{teamName}}
+				allWithoutDuplicates[player.Name] = newResult
+				allPlayers = append(allPlayers, newResult)
+			}
 		}
 	}
+}
 
-	goGroup.Done()
+func getPlayerIndex(currentPlayer string) int {
+	for index, player := range allPlayers {
+		if player.Name == currentPlayer {
+			return index
+		}
+	}
+	return -1
 }
 
 func permutationOfPlayers(resultList ResultList) ResultList {
@@ -92,13 +116,4 @@ func permutationOfPlayers(resultList ResultList) ResultList {
 //Get - Makes a Get request
 func Get(url string) (*http.Response, error) {
 	return http.Get(url)
-}
-
-func inRequiredTeams(team string, requiredTeams []string) bool {
-	for _, requiredTeam := range requiredTeams {
-		if requiredTeam == team {
-			return true
-		}
-	}
-	return false
 }
