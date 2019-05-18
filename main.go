@@ -58,7 +58,7 @@ func main() {
 
 }
 
-//getTeamPlayers - Given a team
+//getTeamPlayers - Given a teamID retrieves team players
 func getTeamPlayers(teamID int, goGroup *sync.WaitGroup) {
 	defer goGroup.Done()
 	teamIDInt := strconv.Itoa(teamID)
