@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -13,11 +14,10 @@ import (
 	"github.com/ofonimefrancis/onefootball/models"
 )
 
-const (
-	LIMIT = 5000
+var (
+	URL       = "https://vintagemonster.onefootball.com/api/teams/en/%s.json"
+	maxTeamID = flag.Int("limit", 9999, "Enter the number of team Ids you want to traverse")
 )
-
-var URL = "https://vintagemonster.onefootball.com/api/teams/en/%s.json"
 
 //Result Reperesents the information that should be outputted on
 type Result struct {
@@ -40,17 +40,20 @@ var allPlayers ResultList
 var allWithoutDuplicates = make(map[string]Result)
 
 func main() {
+	flag.Parse()
 	goGroup := new(sync.WaitGroup)
 
-	for i := 1; i <= LIMIT; i++ {
+	for i := 1; i <= *maxTeamID; i++ {
 		go getTeamPlayers(i, goGroup)
 	}
 
-	goGroup.Add(LIMIT)
+	goGroup.Add(*maxTeamID)
 	goGroup.Wait()
 
+	count := 1
 	for _, player := range permutationOfPlayers(allPlayers) {
-		fmt.Printf("%s; %s; %s\n", player.Name, player.Age, strings.Join(player.Team, ", "))
+		fmt.Printf("%d. %s; %s; %s\n", count, player.Name, player.Age, strings.Join(player.Team, ", "))
+		count++
 	}
 
 }
